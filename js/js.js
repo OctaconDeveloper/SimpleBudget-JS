@@ -6,14 +6,27 @@ const budgetController = (function() {
 		this.id = id;
 		this.description = description;
 		this.amount = amount;
-	}
+		this.percentage = -1;
+	};
+
+	Debit.prototype.calcPercentage = function(totalIncome) {
+        if (totalIncome > 0) {
+            this.percentage = Math.round((this.amount / totalIncome) * 100);
+        } else {
+            this.percentage = -1;
+        }
+    };
+
+	Debit.prototype.getPercentage = function(){
+		return this.percentage;
+	};
 
 	//create incomes (credit) constructor
 	let Credit = function(id,description,amount){
 		this.id = id;
 		this.description = description;
 		this.amount = amount;
-	}
+	};
 
 	//Initailize variable for total costs
 	let calculateTotal = function(type){
@@ -23,7 +36,7 @@ const budgetController = (function() {
 		});
 		data.totals[type] = sum;
 
-	}
+	};
 
 	//Initialize  variables for debit and credit
 	let data = {
@@ -101,6 +114,21 @@ const budgetController = (function() {
 			}
 			
 		},
+
+		//calculate percentage
+		calculatePercentages: function(){
+			data.transaction.exp.forEach(function(cur) {
+               cur.calcPercentage(data.totals.inc);
+            });
+		},
+
+		 getPercentages: function() {
+            var allPerc = data.transaction.exp.map(function(cur) {
+                return cur.getPercentage();
+            });
+            return allPerc;
+        },
+
 		getBudget: function(){
 			return {
 				budget: data.budget,
@@ -132,7 +160,8 @@ const UIController = (function(){
 		debitLabel: '.budget__expenses--value',
 		perentageLabel: '.budget__expenses--percentage',
 		container: '.container',
-		// deleteButton
+		debitPercentageLabel: '.item__percentage',
+		month_year: '.budget__title--month',
 	}
 	return {
 		//Get input from UI and make it public
@@ -199,6 +228,41 @@ const UIController = (function(){
 			}
 		},
 
+		//display Percentage
+		displayPercentages: function(percentages){
+			let fields, nodeListForEach;
+			fields = document.querySelectorAll(DOMValue.debitPercentageLabel);
+
+			nodeListForEach = function(list, callback){
+				for(var i=0; i < list.length; i++){
+					callback(list[i],i);
+				}
+			};
+
+			nodeListForEach(fields, function(current, index){
+				if(percentages[index] > 0){
+					current.textContent = percentages[index] + '%';
+				}else{
+					current.textContent = '___';
+				}
+			});
+		},
+
+
+		//display Month
+
+		displayMonth: function(){
+			let now, year, month, months;
+			now = new Date();
+
+			year = now.getFullYear();
+			months =  ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+			month = now.getMonth();
+
+			document.querySelector(DOMValue.month_year).textContent = months[month]+ ' '+year;
+
+		},
+
 		//Return DOM Strings as public values
 		getDomValues: function(){
 			return DOMValue;
@@ -246,11 +310,28 @@ const Interface   = (function(budgetCtrl, UICtrl){
 			//4. Clear the fIelds
 			UICtrl.clearFields();
 
-			//Calculate Budget
+			//5.  Calculate Budget
 			ctrlUpdateBudget();
+
+			//6. Calculate percenatge and display
+			ctrlUpdatePercentage();
 		}
 		
 
+	};
+
+	//Updating Budget Percentage
+	let ctrlUpdatePercentage = function(){
+
+		//1. Calculate Percentages
+		budgetCtrl.calculatePercentages();
+
+		//2. Read percentages from the budget controller
+		var percentages = budgetCtrl.getPercentages();
+		// console.log(percentages);
+		//3. Update the UI with the new percebtages
+		// console.log(percentages);
+		UICtrl.displayPercentages(percentages);
 	};
 
 	//Updating Budget Info
@@ -297,6 +378,7 @@ const Interface   = (function(budgetCtrl, UICtrl){
 		//Initilize  our Interface
 		init: function(){
 			//call eventlisteners
+			UICtrl.displayMonth();
 			UICtrl.displayBudget({
 				budget: 0,
 				totalCredit: 0,
