@@ -15,6 +15,16 @@ const budgetController = (function() {
 		this.amount = amount;
 	}
 
+	//Initailize variable for total costs
+	let calculateTotal = function(type){
+		let sum = 0;
+		data.transaction[type].forEach(function(current){
+			sum += current.amount;
+		});
+		data.totals[type] = sum;
+
+	}
+
 	//Initialize  variables for debit and credit
 	let data = {
 		transaction:{
@@ -24,7 +34,9 @@ const budgetController = (function() {
 		totals:{
 			exp: 0,
 			inc: 0
-		}
+		},
+		budget: 0,
+		percentage: -1,
 	};
 
 	//Create public methods
@@ -57,6 +69,30 @@ const budgetController = (function() {
 			//Return newly created item
 			return newItem;
 		},
+		calculateBudget: function(){
+			//calculate the total debit and credit
+			calculateTotal('exp');
+			calculateTotal('inc');
+
+			//calculate the budget: credit - debit
+			data.budget = data.totals.inc - data.totals.exp;
+
+			//calculate the perentage of debit
+			if(data.totals.inc > 0){
+				data.perentage = Math.round((data.totals.exp / data.totals.inc) * 100);
+			}else{
+				data.perentage = -1;
+			}
+			
+		},
+		getBudget: function(){
+			return {
+				budget: data.budget,
+				totalCredit: data.totals.inc,
+				totalDebit: data.totals.exp,
+				perentage: data.perentage,
+			}
+		},
 
 		testing: function() {
 			console.log(data);
@@ -75,13 +111,17 @@ const UIController = (function(){
 		button: '.add__btn',
 		incomeDiv:'.income__list',
 		expenseDiv: '.expenses__list',
+		budgetDiv: '.budget__value',
+		creditLabel: '.budget__income--value',
+		debitLabel: '.budget__expenses--value',
+		perentageLabel: '.budget__expenses--percentage',
 	}
 	return {
 		//Get input from UI and make it public
 		getinput: function(){
 			return{
 				type: document.querySelector(DOMValue.type).value,
-				amount: document.querySelector(DOMValue.amount).value,
+				amount: parseFloat(document.querySelector(DOMValue.amount).value),
 				description: document.querySelector(DOMValue.description).value,
 			}
 
@@ -109,12 +149,38 @@ const UIController = (function(){
 			document.querySelector(element).insertAdjacentHTML('beforeend',newHtml);
 
 		},
+		//Reset all input fields 
+		clearFields: function(){
+			let fields, fieldsArr;
+			fields = document.querySelectorAll(DOMValue.description+', '+DOMValue.amount);
+			fieldsArr = Array.prototype.slice.call(fields);
+
+			fieldsArr.forEach(function(current, index, array){
+				current.value = "";
+			});
+			fieldsArr[0].focus();
+		},
+
+		//display budget value
+		displayBudget: function(obj){
+			document.querySelector(DOMValue.budgetDiv).textContent =  new Intl.NumberFormat('NGN', { style: 'currency', currency: 'NGN' , maximumSignificantDigits: 3 }).format(obj.budget);
+			document.querySelector(DOMValue.creditLabel).textContent = '+ ' + new Intl.NumberFormat('NGN', { style: 'currency', currency: 'NGN' , maximumSignificantDigits: 3 }).format(obj.totalCredit);
+			document.querySelector(DOMValue.debitLabel).textContent = '- ' + new Intl.NumberFormat('NGN', { style: 'currency', currency: 'NGN' , maximumSignificantDigits: 3 }).format(obj.totalDebit);
+			if(obj.perentage > 0){
+				document.querySelector(DOMValue.perentageLabel).textContent = obj.perentage+'%';
+			}else{
+				document.querySelector(DOMValue.perentageLabel).textContent = '___';
+			}
+		},
+
 		//Return DOM Strings as public values
 		getDomValues: function(){
 			return DOMValue;
 		}
 	}
 })();
+
+
 
 //Global App Controller
 const Interface   = (function(budgetCtrl, UICtrl){
@@ -140,25 +206,47 @@ const Interface   = (function(budgetCtrl, UICtrl){
 		let input, newItem;
 		//1. Get the filed input data
 		input = UICtrl.getinput();
-		// console.log(input);
-		
-		//2. Add the tem to the budget controller
-		newItem = budgetCtrl.addItem(input.type, input.description, input.amount);
-		
-		//3. Add item to the UI
-		UICtrl.addListItem(newItem, input.type);
-		
-		//4. Calculate the budget
 
+		//test for empty imputs
+		if(input.description !=="" && !isNaN(input.amount) && input.amount > 0 ){
+			//2. Add the tem to the budget controller
+			newItem = budgetCtrl.addItem(input.type, input.description, input.amount);
+			
+			//3. Add item to the UI
+			UICtrl.addListItem(newItem, input.type);
+
+			//4. Clear the fIelds
+			UICtrl.clearFields();
+
+			//Calculate Budget
+			ctrlUpdateBudget();
+		}
 		
-		//5. Display the budget on the UI
 
 	};
+
+	let ctrlUpdateBudget = function(){
+		let budget;
+		//1. Calculate the budget
+		budgetCtrl.calculateBudget();
+
+		//2. Return the budget
+		budget = budgetCtrl.getBudget();
+
+		//3. Display the budget on the UI
+		UICtrl.displayBudget(budget);
+	}
 
 	return {
 		//Initilize  our Interface
 		init: function(){
 			//call eventlisteners
+			UICtrl.displayBudget({
+				budget: 0,
+				totalCredit: 0,
+				totalDebit: 0,
+				perentage: -1,
+			});
 			eventListernerGroup();
 
 
